@@ -1,0 +1,27 @@
+{
+  "name": "intlug-freeipa-presentation",
+  "version": "1.0.0",
+  "description": "INTLUG FreeIPA presentation using Marp",
+  "scripts": {
+    "check:invert-class": "node scripts/ensure-invert-class.mjs --check",
+    "fix:invert-class": "node scripts/ensure-invert-class.mjs --write",
+    "build": "marp slides.md -o slides.html --html",
+    "build:pdf": "marp slides.md -o slides.pdf --allow-local-files --html",
+    "build:pptx": "marp slides.md -o slides.pptx --html",
+    "watch": "marp -w slides.md -o slides.html --html",
+    "serve": "marp -s slides.md --html"
+  },
+  "keywords": [
+    "linux",
+    "freeipa",
+    "fedora",
+    "ansible",
+    "presentation",
+    "marp"
+  ],
+  "author": "INTLUG",
+  "license": "MIT",
+  "devDependencies": {
+    "@marp-team/marp-cli": "^4.2.3"
+  }
+}

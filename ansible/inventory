@@ -1,0 +1,10 @@
+[ipa_server]
+ipaserver ansible_host=192.168.122.10
+
+[ipa_clients]
+ipaclient1 ansible_host=192.168.122.11
+ipaclient2 ansible_host=192.168.122.12
+
+[freeipa:children]
+ipa_server
+ipa_clients

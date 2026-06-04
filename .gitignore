@@ -7,3 +7,5 @@ node_modules/
 *~
 .ansible
 .vscode
+.venv/
+ansible/keys/demokey*

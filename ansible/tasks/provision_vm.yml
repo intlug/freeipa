@@ -1,0 +1,53 @@
+---
+- name: "{{ vm.name }} | Create overlay QCOW2 disk image"
+  ansible.builtin.command: >-
+    qemu-img create -f qcow2 -F qcow2
+    -b {{ base_image }}
+    {{ storage_dir }}/{{ vm.name }}.qcow2
+    {{ disk_size }}
+  become: true
+
+- name: "{{ vm.name }} | Create cloud-init staging directory"
+  ansible.builtin.file:
+    path: "{{ cidata_dir }}/{{ vm.name }}"
+    state: directory
+    mode: "0755"
+
+- name: "{{ vm.name }} | Render cloud-init meta-data"
+  ansible.builtin.template:
+    src: templates/meta-data.j2
+    dest: "{{ cidata_dir }}/{{ vm.name }}/meta-data"
+    mode: "0644"
+
+- name: "{{ vm.name }} | Render cloud-init user-data"
+  ansible.builtin.template:
+    src: templates/user-data.j2
+    dest: "{{ cidata_dir }}/{{ vm.name }}/user-data"
+    mode: "0644"
+
+- name: "{{ vm.name }} | Render cloud-init network-config"
+  ansible.builtin.template:
+    src: templates/network-config.j2
+    dest: "{{ cidata_dir }}/{{ vm.name }}/network-config"
+    mode: "0644"
+
+- name: "{{ vm.name }} | Create cloud-init ISO"
+  ansible.builtin.command: >-
+    cloud-localds
+    --network-config {{ cidata_dir }}/{{ vm.name }}/network-config
+    {{ storage_dir }}/{{ vm.name }}-cidata.iso
+    {{ cidata_dir }}/{{ vm.name }}/user-data
+    {{ cidata_dir }}/{{ vm.name }}/meta-data
+  become: true
+
+- name: "{{ vm.name }} | Define VM in libvirt"
+  community.libvirt.virt:
+    command: define
+    xml: "{{ lookup('template', 'templates/vm.xml.j2') }}"
+    uri: "{{ libvirt_uri }}"
+
+- name: "{{ vm.name }} | Start VM"
+  community.libvirt.virt:
+    name: "{{ vm.name }}"
+    state: running
+    uri: "{{ libvirt_uri }}"

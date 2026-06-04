@@ -1,0 +1,8 @@
+---
+# FreeIPA server install and client enrollment.
+# Run after provision-vms.yml has completed successfully.
+#
+# Usage:
+#   ansible-playbook site.yml
+#
+# Not yet implemented — reserved for the demo walkthrough.

@@ -1,0 +1,3 @@
+freeipa_packages:
+  - freeipa-server
+  - freeipa-server-dns

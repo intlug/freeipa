@@ -44,13 +44,15 @@ This is a MARP project creating a presentation on FreeIPA for the INTLUG group. 
 ├── ansible/
 │   ├── ansible.cfg
 │   ├── inventory
-│   ├── provision-vms.yml
+│   ├── provision-lab.yml
 │   ├── teardown-vms.yml
 │   ├── site.yml
 │   ├── requirements.yml
 │   ├── keys/
 │   │   ├── demokey.pub
 │   │   └── demokey               (gitignored — private key)
+│   ├── tasks/
+│   │   └── provision_vm.yml      (per-VM provisioning, called by provision-lab.yml)
 │   └── group_vars/
 │       ├── all.yml
 │       ├── ipa_server.yml
@@ -128,7 +130,7 @@ The `requirements.yml` must include at minimum `community.libvirt`.
 Run with `-e overwrite=yes` to allow the playbook to tear down and recreate existing VMs and disk images:
 
 ```bash
-ansible-playbook ansible/provision-vms.yml -e overwrite=yes
+ansible-playbook ansible/provision-lab.yml -e overwrite=yes
 ```
 
 Without this flag, the playbook stops if VMs or QCOW2 files already exist.

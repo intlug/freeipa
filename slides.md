@@ -13,8 +13,8 @@ title: 'INTLUG June 2026 | FreeIPA'
 
 <style>
 section {
-  font-size: 28px;
-  padding: 75px 64px 92px 64px;
+  font-size: 24px;
+  padding: 60px 56px 76px 56px;
 }
 
 :root {
@@ -278,6 +278,50 @@ The result: ten machines means ten places to make the same change — and forget
 
 ---
 
+## What Actually Happens at Login
+
+When a user logs in via SSH or the console, two subsystems do the work:
+
+**NSS — Name Service Switch** (`/etc/nsswitch.conf`)
+- Resolves *who the user is*: UID, GID, home directory, shell
+- Answers `getpwnam()` / `getgrnam()` calls from the kernel and tools
+- `passwd: files` → reads `/etc/passwd`; `group: files` → reads `/etc/group`
+
+**PAM — Pluggable Authentication Modules** (`/etc/pam.d/`)
+- Handles *proving identity* and setting up the session
+- Stack of modules invoked in order: `auth` → `account` → `session`
+- `pam_unix.so` checks the password against `/etc/shadow`
+- `pam_limits.so`, `pam_env.so` etc. configure the session environment
+
+sshd and login call PAM; PAM calls NSS. Everything resolves locally — there is no network, no central authority.
+
+---
+
+## Config Files and `getent`
+
+Key files in the local-only stack:
+
+| File | Purpose |
+|------|---------|
+| `/etc/nsswitch.conf` | Where to look for passwd, group, hosts, etc. |
+| `/etc/passwd` | User accounts (uid, gid, home, shell) |
+| `/etc/shadow` | Hashed passwords and expiry policy |
+| `/etc/group` | Group memberships |
+| `/etc/pam.d/sshd` | PAM stack for SSH logins |
+| `/etc/pam.d/system-auth` | Shared PAM policy (RHEL/Fedora) |
+
+**`getent`** — queries NSS directly; shows what the system actually resolves:
+
+```bash
+getent passwd jsmith      # full passwd entry for jsmith
+getent group wheel        # group membership
+getent hosts myserver     # hostname resolution
+```
+
+If `getent passwd jsmith` returns nothing, the user doesn't exist as far as the OS is concerned — regardless of what's in `/etc/passwd` directly.
+
+---
+
 ## The Gaps That Bite You
 
 Beyond just users:
@@ -320,7 +364,7 @@ FreeIPA assembles proven upstream projects:
 |-----------|---------|------|
 | `dirsrv` | 389 Directory Server | LDAP directory backend |
 | `krb5kdc` | MIT Kerberos 5 | Authentication / SSO |
-| Dogtag + certmonger | Dogtag PKI | Certificate authority |
+| `Dogtag` + `certmonger` | Dogtag PKI | Certificate authority |
 | `named` | BIND + PKCS#11 | DNS and DNSSEC |
 | `httpd` | Apache | Web UI and JSON-RPC API |
 | `sssd` | SSSD | Client-side identity daemon |
@@ -357,16 +401,75 @@ All `ipa` CLI commands and the web UI are ultimately reads/writes against `dirsr
 
 ---
 
-## Kerberos — MIT Kerberos 5
+## Querying LDAP with `ldapsearch`
 
-The authentication layer.
+`ldapsearch` lets you inspect the directory directly — useful for debugging and understanding what FreeIPA stores.
 
-- Issues **tickets** (TGT and service tickets) — no passwords sent over the wire after initial login
-- `kinit` to get a ticket, `klist` to see what you have, `kdestroy` to clear them
-- Enables true SSO: one `kinit` and you can SSH, access the web UI, mount NFS, hit LDAP — all without re-entering a password
-- FreeIPA maps Kerberos principals to LDAP entries — one unified identity
+| Flag | Meaning |
+|------|---------|
+| `-H ldap://host` | LDAP server URI |
+| `-x` | Simple bind (user + password, not SASL) |
+| `-D "cn=..."` | Bind DN — who you authenticate as |
+| `-w` / `-W` | Password inline / prompt for it |
+| `-b "dc=..."` | Search base — where in the DIT to start |
 
-The Kerberos realm (e.g. `EXAMPLE.COM`) maps directly to your FreeIPA domain.
+The final positional argument is the **search filter**, e.g. `"(objectClass=*)"`.
+Attributes listed after the filter restrict which fields are returned.
+
+---
+
+## `ldapsearch` — Querying Users and Groups
+
+```bash
+# All users in FreeIPA
+ldapsearch -x -H ldap://ipa.example.com \
+  -D "cn=Directory Manager" -W \
+  -b "cn=users,cn=accounts,dc=example,dc=com" \
+  "(objectClass=posixAccount)" uid cn mail
+
+# All groups
+ldapsearch -x -H ldap://ipa.example.com \
+  -D "cn=Directory Manager" -W \
+  -b "cn=groups,cn=accounts,dc=example,dc=com" \
+  "(objectClass=groupOfNames)" cn member
+```
+
+FreeIPA users live under `cn=users,cn=accounts,dc=…` — not the default `ou=People` you see in textbooks.
+
+---
+
+## Kerberos — How Trust Works
+
+Kerberos proves identity without sending passwords over the wire.
+
+- **KDC** (Key Distribution Center) — the authority; FreeIPA *is* the KDC
+- **Principal** — a Kerberos identity: `user@REALM` or `service/host@REALM`
+- **TGT** (Ticket Granting Ticket) — issued after initial login; proves who you are
+- **Service ticket** — exchanged for access to a specific service; derived from the TGT
+
+The flow: authenticate once to the KDC → receive a TGT → present TGT to get service tickets → access services. **Your password never leaves the first step.**
+
+The **realm** (`EXAMPLE.COM`) is the trust boundary. FreeIPA maps each Kerberos principal to an LDAP entry — one unified identity across both systems.
+
+---
+
+## Kerberos — Tools and Keytabs
+
+```bash
+kinit jsmith            # authenticate — prompts for password, stores TGT
+kinit -kt app.keytab HTTP/myhost.example.com  # non-interactive, uses keytab
+
+klist                   # show current tickets and expiry times
+kdestroy                # discard all tickets (logout)
+```
+
+**Keytab files** — a stored cryptographic secret tied to a principal, used by services to authenticate without human interaction:
+- Equivalent to a password, but cryptographically bound to the principal
+- Retrieved from FreeIPA with `ipa-getkeytab`
+- Must be protected: `chmod 600`, owned by the service account
+- Rotating: issue a new keytab — the old one is immediately invalidated
+
+SSSD handles `kinit`/ticket renewal transparently at interactive login — users rarely need to run it manually.
 
 ---
 
@@ -449,16 +552,63 @@ The day-to-day management layer:
 
 ---
 
+## Service Principals
+
+A **service principal** identifies a specific service running on a specific host — it is the Kerberos identity certmonger and clients use.
+
+```bash
+# Register a service (host must already be enrolled)
+ipa service-add HTTP/myhost.example.com
+
+# Retrieve a Kerberos keytab for the service
+ipa-getkeytab \
+  -s ipa.example.com \
+  -p HTTP/myhost.example.com \
+  -k /etc/httpd/krb5.keytab
+```
+
+- Format: `serviceType/hostname@REALM` — e.g. `HTTP/web.example.com@EXAMPLE.COM`
+- Common types: `HTTP`, `ldap`, `nfs`, `cifs`, `ftp`, `smtp`
+- The `-K` flag in `getcert request` references this principal — certmonger will associate the issued certificate with it
+- Permissions on who can retrieve the keytab or cert are managed per-service in FreeIPA
+
+---
+
 ## Certificate Management
 
 From chaos to lifecycle-managed PKI:
 
-- Request a cert: `getcert request -k /etc/pki/tls/private/myservice.key -f /etc/pki/tls/certs/myservice.crt -K HTTP/myhost.example.com`
+- Request a cert: `getcert request -c IPA -k /etc/pki/tls/private/myservice.key -f /etc/pki/tls/certs/myservice.crt -K HTTP/myhost.example.com`
 - certmonger tracks it, renews it automatically before expiry
 - All internal services can have **valid certificates from your own CA**
 - CA cert distributable to browsers and OS trust stores via the FreeIPA CA bundle
+- Use "after" scripts (-C script) to restart services if needed, copy/manipulate the certs to be compatible with the software.
 
 Use cases: internal HTTPS, LDAPS, service-to-service mTLS, VPN certificates.
+
+---
+
+## `getcert` as a Non-Root User
+
+**`ipa-getcert`** — a symlink installed with `freeipa-client` that pre-sets `-c IPA`:
+
+```bash
+ipa-getcert request \
+  -k /opt/myapp/certs/myapp.key \
+  -f /opt/myapp/certs/myapp.crt \
+  -F /opt/myapp/certs/ca.crt \
+  -o myapp -O myapp -m 0640 \
+  -C "cat /opt/myapp/certs/myapp.crt /opt/myapp/certs/ca.crt \
+      > /opt/myapp/certs/fullchain.crt" \
+  -K HTTP/myhost.example.com
+```
+
+- Add the requesting user to the **`certmonger` group** for D-Bus access to the daemon
+- **`-o/-O/-m`** — certmonger creates the key and cert owned by the app user, not root
+- **`-F`** — writes the CA chain to a separate file
+- **`-C`** — post-save command; use it to concatenate cert + CA into a full chain file
+
+Store certs under an app-owned directory — `/etc/pki/tls` is root territory.
 
 ---
 

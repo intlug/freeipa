@@ -1,0 +1,17 @@
+version: 2
+ethernets:
+  eth0:
+    match:
+      macaddress: "{{ vm.mac }}"
+    addresses:
+      - {{ vm.ip }}/24
+    routes:
+      - to: default
+        via: {{ gateway }}
+    nameservers:
+      addresses:
+        - {{ dns_server }}
+      search:
+        - {{ domain }}
+    dhcp4: false
+    dhcp6: false

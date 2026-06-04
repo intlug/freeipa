@@ -1,0 +1,163 @@
+---
+- name: Provision FreeIPA demo VMs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    overwrite: false
+    cidata_dir: /tmp/freeipa-cidata
+
+  tasks:
+
+    - name: Check base image exists
+      ansible.builtin.stat:
+        path: "{{ base_image }}"
+      register: base_stat
+
+    - name: Fail if base image not found
+      ansible.builtin.fail:
+        msg: "Base image not found: {{ base_image }}"
+      when: not base_stat.stat.exists
+
+    - name: Ensure base image is read-only
+      ansible.builtin.file:
+        path: "{{ base_image }}"
+        mode: "a-w"
+      become: true
+
+    - name: List currently defined VMs
+      community.libvirt.virt:
+        command: list_vms
+        uri: "{{ libvirt_uri }}"
+      register: defined_vms
+
+    - name: Check for existing overlay disk images
+      ansible.builtin.stat:
+        path: "{{ storage_dir }}/{{ vm.name }}.qcow2"
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm
+        label: "{{ vm.name }}"
+      register: disk_stat
+
+    - name: Abort if VMs or disks already exist without overwrite flag
+      ansible.builtin.fail:
+        msg: >-
+          '{{ item.vm.name }}' already exists
+          (VM defined: {{ item.vm.name in defined_vms.list_vms }},
+          disk: {{ item.stat.exists }}).
+          Re-run with -e overwrite=yes to overwrite.
+      when:
+        - not (overwrite | bool)
+        - (item.vm.name in defined_vms.list_vms) or item.stat.exists
+      loop: "{{ disk_stat.results }}"
+      loop_control:
+        label: "{{ item.vm.name }}"
+
+    - name: Destroy running VMs
+      community.libvirt.virt:
+        name: "{{ vm.name }}"
+        state: destroyed
+        uri: "{{ libvirt_uri }}"
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm
+        label: "{{ vm.name }}"
+      when:
+        - overwrite | bool
+        - vm.name in defined_vms.list_vms
+      ignore_errors: true
+
+    - name: Undefine existing VMs
+      community.libvirt.virt:
+        name: "{{ vm.name }}"
+        command: undefine
+        uri: "{{ libvirt_uri }}"
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm
+        label: "{{ vm.name }}"
+      when:
+        - overwrite | bool
+        - vm.name in defined_vms.list_vms
+      ignore_errors: true
+
+    - name: Remove existing overlay disk images
+      ansible.builtin.file:
+        path: "{{ storage_dir }}/{{ vm.name }}.qcow2"
+        state: absent
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm
+        label: "{{ vm.name }}"
+      when: overwrite | bool
+      become: true
+
+    - name: Remove existing cloud-init ISOs
+      ansible.builtin.file:
+        path: "{{ storage_dir }}/{{ vm.name }}-cidata.iso"
+        state: absent
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm
+        label: "{{ vm.name }}"
+      when: overwrite | bool
+      become: true
+
+    - name: Register MAC to IP hostname mappings in libvirt network
+      ansible.builtin.shell: >-
+        virsh --connect {{ libvirt_uri }} net-update {{ libvirt_network }}
+        add ip-dhcp-host
+        "<host mac='{{ vm.mac }}' name='{{ vm.fqdn }}' ip='{{ vm.ip }}'/>"
+        --live --config
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm
+        label: "{{ vm.name }}"
+      register: net_update
+      changed_when: net_update.rc == 0
+      failed_when:
+        - net_update.rc != 0
+        - "'already exists' not in net_update.stderr"
+
+    - name: Provision each VM
+      ansible.builtin.include_tasks: tasks/provision_vm.yml
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm
+        label: "{{ vm.name }}"
+
+    - name: Wait for SSH on all VMs
+      ansible.builtin.wait_for:
+        host: "{{ vm.ip }}"
+        port: 22
+        timeout: 300
+        delay: 15
+        state: started
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm
+        label: "{{ vm.name }}"
+
+
+- name: Verify connectivity and install FreeIPA packages
+  hosts: freeipa
+  gather_facts: false
+  become: true
+
+  tasks:
+
+    - name: Verify clients can reach the server
+      ansible.builtin.command: >-
+        ping -c 2 {{ hostvars['ipaserver']['ansible_host'] }}
+      when: inventory_hostname in groups['ipa_clients']
+      changed_when: false
+
+    - name: Install FreeIPA packages
+      ansible.builtin.dnf:
+        name: "{{ freeipa_packages }}"
+        state: present
+
+    - name: Confirm expected packages are installed
+      ansible.builtin.command: "rpm -q {{ freeipa_packages | join(' ') }}"
+      changed_when: false

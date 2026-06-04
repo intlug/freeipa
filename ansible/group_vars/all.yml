@@ -1,0 +1,38 @@
+libvirt_uri:     qemu:///system
+libvirt_network: default
+libvirt_pool:    FastStorage
+storage_dir:     /VirtualMachines
+base_image:      /VirtualMachines/Fedora-Server-Guest-Generic-44-1.7.x86_64.qcow2
+disk_size:       30G
+
+domain:     intlug
+gateway:    192.168.122.1
+dns_server: 192.168.122.1
+
+vms:
+  - name:      ipaserver
+    fqdn:      ipaserver.intlug
+    hostname:  ipaserver
+    ip:        192.168.122.10
+    mac:       "52:54:00:00:01:10"
+    vcpus:     2
+    memory_mb: 4096
+    role:      server
+
+  - name:      ipaclient1
+    fqdn:      ipaclient1.intlug
+    hostname:  ipaclient1
+    ip:        192.168.122.11
+    mac:       "52:54:00:00:01:11"
+    vcpus:     1
+    memory_mb: 4096
+    role:      client
+
+  - name:      ipaclient2
+    fqdn:      ipaclient2.intlug
+    hostname:  ipaclient2
+    ip:        192.168.122.12
+    mac:       "52:54:00:00:01:12"
+    vcpus:     1
+    memory_mb: 4096
+    role:      client

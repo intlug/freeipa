@@ -50,8 +50,7 @@
       changed_when: net_delete.rc == 0
       failed_when:
         - net_delete.rc != 0
-        - "'not found' not in net_delete.stderr"
-        - "'No matching' not in net_delete.stderr"
+        - "'locate a matching dhcp host entry' not in net_delete.stderr"
 
     - name: Remove overlay disk images
       ansible.builtin.file:
@@ -61,7 +60,6 @@
       loop_control:
         loop_var: vm
         label: "{{ vm.name }}"
-      become: true
 
     - name: Remove cloud-init ISO images
       ansible.builtin.file:
@@ -71,7 +69,6 @@
       loop_control:
         loop_var: vm
         label: "{{ vm.name }}"
-      become: true
 
     - name: Remove cloud-init staging directory
       ansible.builtin.file:

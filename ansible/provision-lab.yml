@@ -194,6 +194,13 @@
         name: "{{ freeipa_packages }}"
         state: present
 
+    - name: Enable and start firewalld
+      ansible.builtin.service:
+        name: firewalld
+        state: started
+        enabled: true
+      when: inventory_hostname in groups['ipa_server']
+
     - name: Confirm FreeIPA server packages installed
       ansible.builtin.command: rpm -q freeipa-server freeipa-server-dns
       when: inventory_hostname in groups['ipa_server']

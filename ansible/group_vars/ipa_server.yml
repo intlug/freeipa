@@ -1,3 +1,6 @@
 freeipa_packages:
   - freeipa-server
+  - freeipa-healthcheck
   - freeipa-server-dns
+  - freeipa-server-encrypted-dns
+  - firewalld

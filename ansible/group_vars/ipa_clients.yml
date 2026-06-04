@@ -1,2 +1,2 @@
 freeipa_packages:
-  - freeipa-client
+  - "@domain-client"

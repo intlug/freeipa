@@ -20,25 +20,12 @@ users:
     ssh_authorized_keys:
       - {{ lookup('file', playbook_dir + '/keys/demokey.pub') }}
 
-write_files:
-  - path: /home/demo/.ssh/demokey
-    owner: demo:demo
-    permissions: '0600'
-    encoding: b64
-    content: {{ lookup('file', playbook_dir + '/keys/demokey') | b64encode }}
-
-  - path: /home/demo/.ssh/config
-    owner: demo:demo
-    permissions: '0600'
-    content: |
-      Host *.{{ domain }}
-        IdentityFile ~/.ssh/demokey
-        StrictHostKeyChecking no
-        UserKnownHostsFile /dev/null
-
 growpart:
   mode: auto
   devices: ['/']
 
 resize_rootfs: true
 ssh_pwauth: false
+
+runcmd:
+  - touch /etc/cloud/cloud-init.disabled

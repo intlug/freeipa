@@ -2,8 +2,15 @@ libvirt_uri:     qemu:///system
 libvirt_network: default
 libvirt_pool:    FastStorage
 storage_dir:     /VirtualMachines
-base_image:      /VirtualMachines/Fedora-Server-Guest-Generic-44-1.7.x86_64.qcow2
+base_image:      /VirtualMachines/Fedora-Cloud-Base-Generic-44-1.7.x86_64.qcow2
 disk_size:       30G
+
+common_dnf_groups:
+  - "@core"
+  - "@system-tools"
+  - "@headless-management"
+  - "@admin-tools"
+  - "@server-product"
 
 domain:     intlug
 gateway:    192.168.122.1

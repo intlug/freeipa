@@ -48,6 +48,7 @@ This is a MARP project creating a presentation on FreeIPA for the INTLUG group. 
 │   ├── teardown-vms.yml
 │   ├── site.yml
 │   ├── requirements.yml
+│   ├── requirements.txt
 │   ├── keys/
 │   │   ├── demokey.pub
 │   │   └── demokey               (gitignored — private key)
@@ -109,12 +110,20 @@ A local libvirtd daemon is accessible by the workstation on qemu:///system. Usin
 
 ### Ansible venv setup
 
-Use Ansible through a local venv at `.venv/` in the project root:
+Use Ansible through a local venv at `.venv/` in the project root.
+
+First install the system build dependency for `libvirt-python`:
+
+```bash
+sudo dnf install -y libvirt-devel
+```
+
+Then create the venv and install all Python dependencies from `ansible/requirements.txt`:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install ansible
+pip install -r ansible/requirements.txt
 ```
 
 Use the venv's `ansible-galaxy` to install required collections:

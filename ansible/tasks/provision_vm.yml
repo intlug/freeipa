@@ -5,7 +5,6 @@
     -b {{ base_image }}
     {{ storage_dir }}/{{ vm.name }}.qcow2
     {{ disk_size }}
-  become: true
 
 - name: "{{ vm.name }} | Create cloud-init staging directory"
   ansible.builtin.file:
@@ -38,8 +37,7 @@
     {{ storage_dir }}/{{ vm.name }}-cidata.iso
     {{ cidata_dir }}/{{ vm.name }}/user-data
     {{ cidata_dir }}/{{ vm.name }}/meta-data
-  become: true
-
+  
 - name: "{{ vm.name }} | Define VM in libvirt"
   community.libvirt.virt:
     command: define

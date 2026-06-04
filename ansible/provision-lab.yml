@@ -23,7 +23,6 @@
       ansible.builtin.file:
         path: "{{ base_image }}"
         mode: "a-w"
-      become: true
 
     - name: List currently defined VMs
       community.libvirt.virt:
@@ -91,7 +90,6 @@
         loop_var: vm
         label: "{{ vm.name }}"
       when: overwrite | bool
-      become: true
 
     - name: Remove existing cloud-init ISOs
       ansible.builtin.file:
@@ -102,7 +100,6 @@
         loop_var: vm
         label: "{{ vm.name }}"
       when: overwrite | bool
-      become: true
 
     - name: Register MAC to IP hostname mappings in libvirt network
       ansible.builtin.shell: >-
@@ -118,7 +115,7 @@
       changed_when: net_update.rc == 0
       failed_when:
         - net_update.rc != 0
-        - "'already exists' not in net_update.stderr"
+        - "'existing dhcp host entry' not in net_update.stderr"
 
     - name: Provision each VM
       ansible.builtin.include_tasks: tasks/provision_vm.yml
@@ -144,6 +141,7 @@
   hosts: freeipa
   gather_facts: false
   become: true
+  tags: install
 
   tasks:
 
@@ -153,11 +151,55 @@
       when: inventory_hostname in groups['ipa_clients']
       changed_when: false
 
-    - name: Install FreeIPA packages
+    - name: Create .ssh directory for demo user
+      ansible.builtin.file:
+        path: /home/demo/.ssh
+        state: directory
+        owner: demo
+        group: demo
+        mode: "0700"
+
+    - name: Copy demo user private key
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/keys/demokey"
+        dest: /home/demo/.ssh/demokey
+        owner: demo
+        group: demo
+        mode: "0600"
+
+    - name: Write demo user SSH config
+      ansible.builtin.copy:
+        content: |
+          Host *.{{ domain }}
+            IdentityFile ~/.ssh/demokey
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+        dest: /home/demo/.ssh/config
+        owner: demo
+        group: demo
+        mode: "0600"
+
+    - name: Update all packages
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+
+    - name: Install common DNF groups
+      ansible.builtin.dnf:
+        name: "{{ common_dnf_groups }}"
+        state: present
+
+    - name: Install FreeIPA packages and groups
       ansible.builtin.dnf:
         name: "{{ freeipa_packages }}"
         state: present
 
-    - name: Confirm expected packages are installed
-      ansible.builtin.command: "rpm -q {{ freeipa_packages | join(' ') }}"
+    - name: Confirm FreeIPA server packages installed
+      ansible.builtin.command: rpm -q freeipa-server freeipa-server-dns
+      when: inventory_hostname in groups['ipa_server']
+      changed_when: false
+
+    - name: Confirm FreeIPA client package installed
+      ansible.builtin.command: rpm -q freeipa-client
+      when: inventory_hostname in groups['ipa_clients']
       changed_when: false

@@ -1,8 +1,384 @@
+
 ---
 # FreeIPA server install and client enrollment.
-# Run after provision-vms.yml has completed successfully.
+# Run after provision-lab.yml has completed successfully.
 #
 # Usage:
 #   ansible-playbook site.yml
 #
-# Not yet implemented — reserved for the demo walkthrough.
+# Passwords are in group_vars/all.yml — change them or move to vault before use.
+
+- name: Setup FreeIPA server and clients
+  hosts: freeipa
+  gather_facts: true
+  become: true
+
+  tasks:
+
+    - name: Install common DNF groups
+      ansible.builtin.dnf:
+        name: "{{ common_dnf_groups }}"
+        state: present
+
+    - name: Install FreeIPA packages and groups
+      ansible.builtin.dnf:
+        name: "{{ freeipa_packages }}"
+        state: present
+
+    - name: Install extra DNF groups
+      ansible.builtin.dnf:
+        name: "{{ extra_dnf_groups }}"
+        state: present
+      when: extra_dnf_groups is defined
+
+    - name: Get current default target
+      ansible.builtin.command: systemctl get-default
+      register: current_target
+      changed_when: false
+      when: default_target is defined
+
+    - name: Set default systemd target
+      ansible.builtin.command: systemctl set-default {{ default_target }}
+      register: target_result
+      when:
+        - default_target is defined
+        - current_target.stdout != default_target
+      changed_when: true
+
+    - name: Reboot to apply new default target
+      ansible.builtin.reboot:
+        reboot_timeout: 300
+      when:
+        - default_target is defined
+        - target_result is changed
+
+    - name: Deploy GNOME settings override
+      ansible.builtin.copy:
+        content: |
+          [org/gnome/desktop/session]
+          idle-delay=uint32 0
+
+          [org/gnome/desktop/screensaver]
+          lock-delay=uint32 0
+
+          [org/gnome/settings-daemon/plugins/power]
+          idle-dim=false
+        dest: /etc/dconf/db/local.d/00-demo-settings
+        owner: root
+        group: root
+        mode: "0644"
+      when: default_target is defined
+
+    - name: Compile dconf database
+      ansible.builtin.command: dconf update
+      when: default_target is defined
+      changed_when: true
+
+    - name: Enable and start firewalld
+      ansible.builtin.service:
+        name: firewalld
+        state: started
+        enabled: true
+      when: inventory_hostname in groups['ipa_server']
+
+    - name: Restart NetworkManager to register interface with firewalld
+      ansible.builtin.service:
+        name: NetworkManager
+        state: restarted
+      when: inventory_hostname in groups['ipa_server']
+
+    - name: Confirm FreeIPA server packages installed
+      ansible.builtin.command: rpm -q freeipa-server freeipa-server-dns
+      when: inventory_hostname in groups['ipa_server']
+      changed_when: false
+
+    - name: Confirm FreeIPA client package installed
+      ansible.builtin.command: rpm -q freeipa-client
+      when: inventory_hostname in groups['ipa_clients']
+      changed_when: false
+    
+
+- name: Configure firewalld for FreeIPA server
+  hosts: ipa_server
+  gather_facts: true
+  become: true
+
+  tasks:
+
+    - name: Add network interface to public zone
+      ansible.posix.firewalld:
+        interface: "{{ ansible_facts['default_ipv4']['interface'] }}"
+        zone: public
+        state: enabled
+        permanent: true
+        immediate: true
+
+    - name: Open FreeIPA services in public zone
+      ansible.posix.firewalld:
+        service: "{{ item }}"
+        zone: public
+        state: enabled
+        permanent: true
+        immediate: true
+      loop:
+        - freeipa-ldap
+        - freeipa-ldaps
+        - freeipa-replication
+        - dns
+        - ntp
+
+
+- name: Install FreeIPA server
+  hosts: ipa_server
+  gather_facts: false
+  become: true
+
+  tasks:
+
+    - name: Run ipa-server-install
+      ansible.builtin.command: >-
+        ipa-server-install
+        --domain={{ ipa_domain }}
+        --realm={{ ipa_realm }}
+        --hostname={{ ipa_server_fqdn }}
+        --ds-password={{ ipa_ds_password }}
+        --admin-password={{ ipa_admin_password }}
+        --setup-dns
+        --forwarder={{ dns_server }}
+        --no-ntp
+        --unattended
+        --ssh-trust-dns
+        --mkhomedir
+      args:
+        creates: /etc/ipa/default.conf
+
+
+- name: Switch client DNS to FreeIPA server
+  hosts: ipa_clients
+  gather_facts: true
+  become: true
+
+  tasks:
+
+    - name: Point DNS to FreeIPA server
+      ansible.builtin.shell: |
+        CONN=$(nmcli -t -f NAME,DEVICE connection show --active | grep "{{ ansible_facts['default_ipv4']['interface'] }}" | cut -d: -f1)
+        nmcli connection modify "$CONN" ipv4.dns "{{ hostvars['ipaserver']['ansible_host'] }}" ipv4.ignore-auto-dns yes
+        nmcli connection up "$CONN"
+      changed_when: true
+
+
+- name: Enroll FreeIPA clients
+  hosts: ipa_clients
+  gather_facts: false
+  become: true
+
+  tasks:
+
+    - name: Run ipa-client-install
+      ansible.builtin.command: >-
+        ipa-client-install
+        --domain={{ ipa_domain }}
+        --server={{ ipa_server_fqdn }}
+        --principal=admin
+        --password={{ ipa_admin_password }}
+        --mkhomedir
+        --unattended
+      args:
+        creates: /etc/ipa/default.conf
+
+
+- name: Seed demo data
+  hosts: ipa_server
+  gather_facts: false
+  become: false
+  tags: seed
+
+  module_defaults:
+    community.general.ipa_user:
+      ipa_host: "{{ ipa_server_fqdn }}"
+      ipa_user: admin
+      ipa_pass: "{{ ipa_admin_password }}"
+      validate_certs: false
+    community.general.ipa_group:
+      ipa_host: "{{ ipa_server_fqdn }}"
+      ipa_user: admin
+      ipa_pass: "{{ ipa_admin_password }}"
+      validate_certs: false
+    community.general.ipa_hbacrule:
+      ipa_host: "{{ ipa_server_fqdn }}"
+      ipa_user: admin
+      ipa_pass: "{{ ipa_admin_password }}"
+      validate_certs: false
+    community.general.ipa_hostgroup:
+      ipa_host: "{{ ipa_server_fqdn }}"
+      ipa_user: admin
+      ipa_pass: "{{ ipa_admin_password }}"
+      validate_certs: false
+    community.general.ipa_sudorule:
+      ipa_host: "{{ ipa_server_fqdn }}"
+      ipa_user: admin
+      ipa_pass: "{{ ipa_admin_password }}"
+      validate_certs: false
+    community.general.ipa_sudocmd:
+      ipa_host: "{{ ipa_server_fqdn }}"
+      ipa_user: admin
+      ipa_pass: "{{ ipa_admin_password }}"
+      validate_certs: false
+    community.general.ipa_sudocmdgroup:
+      ipa_host: "{{ ipa_server_fqdn }}"
+      ipa_user: admin
+      ipa_pass: "{{ ipa_admin_password }}"
+      validate_certs: false
+    community.general.ipa_dnsrecord:
+      ipa_host: "{{ ipa_server_fqdn }}"
+      ipa_user: admin
+      ipa_pass: "{{ ipa_admin_password }}"
+      validate_certs: false
+
+  tasks:
+
+    - name: Add A records for all VMs
+      community.general.ipa_dnsrecord:
+        zone: "{{ ipa_domain }}"
+        name: "{{ vm.hostname }}"
+        ip_address: "{{ vm.ip }}"
+        state: present
+      loop: "{{ vms }}"
+      loop_control:
+        loop_var: vm
+        label: "{{ vm.name }}"
+
+    - name: Disable allow_all HBAC rule
+      community.general.ipa_hbacrule:
+        name: allow_all
+        state: disabled
+
+    - name: Create client_hosts hostgroup
+      community.general.ipa_hostgroup:
+        name: client_hosts
+        description: "Demo client machines"
+        host:
+          - "ipaclient1.{{ ipa_domain }}"
+          - "ipaclient2.{{ ipa_domain }}"
+        state: present
+
+    - name: Create sysadmins group
+      community.general.ipa_group:
+        name: sysadmins
+        description: "System administrators - full access everywhere"
+        state: present
+
+    - name: Create developers group
+      community.general.ipa_group:
+        name: developers
+        description: "Developers - client access only"
+        state: present
+
+    - name: Create alice (sysadmin)
+      community.general.ipa_user:
+        name: alice
+        givenname: Alice
+        sn: Smith
+        password: "{{ demo_password }}"
+        sshpubkey:
+          - "{{ lookup('file', playbook_dir + '/keys/demokey.pub') }}"
+        state: present
+
+    - name: Create bob (developer)
+      community.general.ipa_user:
+        name: bob
+        givenname: Bob
+        sn: Jones
+        password: "{{ demo_password }}"
+        sshpubkey:
+          - "{{ lookup('file', playbook_dir + '/keys/demokey.pub') }}"
+        state: present
+
+    - name: Add alice to sysadmins
+      community.general.ipa_group:
+        name: sysadmins
+        user:
+          - alice
+        state: present
+
+    - name: Add bob to developers
+      community.general.ipa_group:
+        name: developers
+        user:
+          - bob
+        state: present
+
+    - name: Prevent demo users requiring password change on first login
+      ansible.builtin.shell: |
+        echo "{{ ipa_admin_password }}" | kinit admin
+        ipa user-mod {{ item }} --setattr krbPasswordExpiration=20380119031408Z
+      loop:
+        - alice
+        - bob
+      changed_when: false
+
+    - name: Allow sysadmins access to all hosts
+      community.general.ipa_hbacrule:
+        name: allow_sysadmins_all
+        description: "Sysadmins can access all hosts via any service"
+        usergroup:
+          - sysadmins
+        hostcategory: all
+        servicecategory: all
+        state: present
+
+    - name: Allow developers access to client hosts only
+      community.general.ipa_hbacrule:
+        name: allow_developers_clients
+        description: "Developers can SSH to client machines only"
+        usergroup:
+          - developers
+        hostgroup:
+          - client_hosts
+        service:
+          - sshd
+        state: present
+
+    - name: Register systemctl sudo command
+      community.general.ipa_sudocmd:
+        name: /usr/bin/systemctl
+        description: "systemctl command"
+        state: present
+
+    - name: Register journalctl sudo command
+      community.general.ipa_sudocmd:
+        name: /usr/bin/journalctl
+        description: "journalctl command"
+        state: present
+
+    - name: Create status_commands sudo command group
+      community.general.ipa_sudocmdgroup:
+        name: status_commands
+        description: "Read-only status commands"
+        sudocmd:
+          - /usr/bin/systemctl
+          - /usr/bin/journalctl
+        state: present
+
+    - name: Create sysadmins sudo rule — all commands on all hosts
+      community.general.ipa_sudorule:
+        name: sysadmins_sudo_all
+        description: "Sysadmins have full sudo on all hosts"
+        cmdcategory: all
+        hostcategory: all
+        usergroup:
+          - sysadmins
+        state: present
+
+    - name: Create developers sudo rule — status commands on clients
+      community.general.ipa_sudorule:
+        name: developers_sudo_status
+        description: "Developers can run status commands on client hosts"
+        cmdgroup:
+          - status_commands
+        hostgroup:
+          - client_hosts
+        usergroup:
+          - developers
+        state: present

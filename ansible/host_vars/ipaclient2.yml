@@ -1,0 +1,6 @@
+extra_dnf_groups:
+  - "@gnome-desktop"
+  - firefox
+  - spice-vdagent
+
+default_target: graphical.target

@@ -54,11 +54,13 @@ This is a MARP project creating a presentation on FreeIPA for the INTLUG group. 
 │   │   └── demokey               (gitignored — private key)
 │   ├── tasks/
 │   │   └── provision_vm.yml      (per-VM provisioning, called by provision-lab.yml)
+│   ├── host_vars/
+│   │   └── ipaclient2.yml        (gnome-desktop group + graphical target)
+│   ├── .venv/                    (gitignored — Python virtualenv)
 │   └── group_vars/
 │       ├── all.yml
 │       ├── ipa_server.yml
 │       └── ipa_clients.yml
-├── .venv/                        (gitignored — Python virtualenv)
 └── package.json
 ```
 
@@ -118,18 +120,19 @@ First install the system build dependency for `libvirt-python`:
 sudo dnf install -y libvirt-devel
 ```
 
-Then create the venv and install all Python dependencies from `ansible/requirements.txt`:
+Then create the venv and install all Python dependencies from `requirements.txt`:
 
 ```bash
+cd ansible
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r ansible/requirements.txt
+pip install -r requirements.txt
 ```
 
 Use the venv's `ansible-galaxy` to install required collections:
 
 ```bash
-.venv/bin/ansible-galaxy collection install -r ansible/requirements.yml
+.venv/bin/ansible-galaxy collection install -r requirements.yml
 ```
 
 The `requirements.yml` must include at minimum `community.libvirt`.

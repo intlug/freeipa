@@ -4,3 +4,4 @@ freeipa_packages:
   - freeipa-server-dns
   - freeipa-server-encrypted-dns
   - firewalld
+  - python3-firewall

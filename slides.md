@@ -6,14 +6,15 @@ class: invert theme-gradient-motif
 transition: diamond
 paginate: true
 header: '![FreeIPA](images/freeipa-logo.png)'
-footer: 'June 2026 - https://github.com/intlug/freeipa.git'
+# footer: 'June 2026 - https://github.com/intlug/freeipa.git'
+footer: " "
 size: 16:9
 title: 'INTLUG June 2026 | FreeIPA'
 ---
 
 <style>
 section {
-  font-size: 24px;
+  font-size: 22px;
   padding: 60px 56px 76px 56px;
 }
 
@@ -39,6 +40,20 @@ header img {
   height: auto;
   display: block;
   opacity: 0.88;
+}
+
+footer {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+footer::before {
+  content: "June 2026 - https://github.com/intlug/freeipa.git";
+  font-weight: bold;
+}
+footer::after {
+  content: "By Peter Larsen";
+  color: #cb9595;
 }
 
 section.theme-gradient-motif {
@@ -317,9 +332,6 @@ getent passwd jsmith      # full passwd entry for jsmith
 getent group wheel        # group membership
 getent hosts myserver     # hostname resolution
 ```
-
-If `getent passwd jsmith` returns nothing, the user doesn't exist as far as the OS is concerned — regardless of what's in `/etc/passwd` directly.
-
 ---
 
 ## The Gaps That Bite You
@@ -381,9 +393,17 @@ None of these are new — FreeIPA makes them work together out of the box.
 
 <!-- _class: fit-image invert theme-gradient-motif -->
 
+## Highlevel Overview
+
+![Networking Diagram](images/NetworkDiagram.png)
+
+---
+
+<!-- _class: fit-image invert theme-gradient-motif -->
+
 ## Architecture Overview
 
-![IPA architecture diagram](images/IPA-arch.png)
+![IPA architecture diagram](images/IPAv3-Layout.png)
 
 ---
 
@@ -450,6 +470,15 @@ Kerberos proves identity without sending passwords over the wire.
 The flow: authenticate once to the KDC → receive a TGT → present TGT to get service tickets → access services. **Your password never leaves the first step.**
 
 The **realm** (`EXAMPLE.COM`) is the trust boundary. FreeIPA maps each Kerberos principal to an LDAP entry — one unified identity across both systems.
+
+---
+## Kerberos Protocol Overview
+
+![Kerberos flow diagram](images/Kerberos_protocol.svg)
+
+<center style="font-size: 50%">
+By <a href="//commons.wikimedia.org/wiki/User:Jeran_Renz" title="User:Jeran Renz">Jeran Renz</a> - <span class="int-own-work" lang="en">Own work</span>, <a href="https://creativecommons.org/licenses/by-sa/4.0" title="Creative Commons Attribution-Share Alike 4.0">CC BY-SA 4.0</a>, <a href="https://commons.wikimedia.org/w/index.php?curid=98722081">Link</a>
+</center>
 
 ---
 

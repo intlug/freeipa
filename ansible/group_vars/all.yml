@@ -12,13 +12,20 @@ common_dnf_groups:
   - "@admin-tools"
   - "@server-product"
 
-domain:     intlug
+domain:     int.lug
 gateway:    192.168.122.1
 dns_server: 192.168.122.1
 
+ipa_domain:         int.lug
+ipa_realm:          INT.LUG
+ipa_server_fqdn:    ipaserver.int.lug
+ipa_ds_password:    "DemoPassword1!"
+ipa_admin_password: "DemoPassword1!"
+demo_password:      "DemoPassword1!"
+
 vms:
   - name:      ipaserver
-    fqdn:      ipaserver.intlug
+    fqdn:      ipaserver.int.lug
     hostname:  ipaserver
     ip:        192.168.122.10
     mac:       "52:54:00:00:01:10"
@@ -27,7 +34,7 @@ vms:
     role:      server
 
   - name:      ipaclient1
-    fqdn:      ipaclient1.intlug
+    fqdn:      ipaclient1.int.lug
     hostname:  ipaclient1
     ip:        192.168.122.11
     mac:       "52:54:00:00:01:11"
@@ -36,10 +43,11 @@ vms:
     role:      client
 
   - name:      ipaclient2
-    fqdn:      ipaclient2.intlug
+    fqdn:      ipaclient2.int.lug
     hostname:  ipaclient2
     ip:        192.168.122.12
     mac:       "52:54:00:00:01:12"
     vcpus:     1
     memory_mb: 4096
     role:      client
+    graphics:  true

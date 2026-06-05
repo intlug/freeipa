@@ -39,11 +39,12 @@ VMs are created with FreeIPA packages pre-installed but `ipa-server-install` and
 ```bash
 sudo dnf install -y libvirt-devel
 
+cd ansible
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r ansible/requirements.txt
+pip install -r requirements.txt
 
-.venv/bin/ansible-galaxy collection install -r ansible/requirements.yml
+.venv/bin/ansible-galaxy collection install -r requirements.yml
 ```
 
 Place `demokey` and `demokey.pub` in `ansible/keys/` before running.

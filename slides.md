@@ -607,7 +607,7 @@ ipa-getkeytab \
 
 From chaos to lifecycle-managed PKI:
 
-- Request a cert: `getcert request -c IPA -k /etc/pki/tls/private/myservice.key -f /etc/pki/tls/certs/myservice.crt -K HTTP/myhost.example.com`
+- Request a cert: `ipa-getcert request -c IPA -k /etc/pki/tls/private/myservice.key -f /etc/pki/tls/certs/myservice.crt -K HTTP/myhost.example.com`
 - certmonger tracks it, renews it automatically before expiry
 - All internal services can have **valid certificates from your own CA**
 - CA cert distributable to browsers and OS trust stores via the FreeIPA CA bundle

@@ -263,10 +263,10 @@ Join us:
 
 1. The problem with Linux auth today
 2. What is FreeIPA?
-3. Architecture overview
-4. Key capabilities — users, sudo, HBAC, PKI, DNS
-5. FreeIPA vs Active Directory
-6. Who needs this?
+3. Who needs this?
+4. Architecture overview
+5. Key capabilities — users, sudo, HBAC, PKI, DNS
+6. FreeIPA vs Active Directory
 7. Installing the server
 8. Enrolling clients
 9. Demo

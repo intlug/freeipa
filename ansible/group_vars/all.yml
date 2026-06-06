@@ -47,7 +47,7 @@ vms:
     hostname:  ipaclient2
     ip:        192.168.122.12
     mac:       "52:54:00:00:01:12"
-    vcpus:     1
+    vcpus:     2
     memory_mb: 4096
     role:      client
     graphics:  true

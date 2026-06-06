@@ -240,9 +240,10 @@
 
     - name: Add A records for all VMs
       community.general.ipa_dnsrecord:
-        zone: "{{ ipa_domain }}"
+        zone_name: "{{ ipa_domain }}"
         name: "{{ vm.hostname }}"
-        ip_address: "{{ vm.ip }}"
+        record_type: A
+        record_value: "{{ vm.ip }}"
         state: present
       loop: "{{ vms }}"
       loop_control:

@@ -184,9 +184,9 @@
         --password={{ ipa_admin_password }}
         --mkhomedir
         --unattended
+        --enable-dns-updates
       args:
         creates: /etc/ipa/default.conf
-
 
 - name: Seed demo data
   hosts: ipa_server

@@ -54,6 +54,7 @@ footer::before {
 footer::after {
   content: "By Peter Larsen";
   color: #cb9595;
+  padding-right: 2em;
 }
 
 section.theme-gradient-motif {
@@ -387,6 +388,39 @@ None of these are new — FreeIPA makes them work together out of the box.
 
 <!-- _class: section-divider invert theme-gradient-motif -->
 
+# Who Needs This?
+
+---
+
+## Home Lab Users
+
+You don't need 500 servers to benefit:
+
+- **One user account** — log into any VM or container with the same credentials
+- **SSH keys stored once** — `ipa user-mod jsmith --sshpubkey="ssh-ed25519 ..."` and it works everywhere
+- **Sudo managed centrally** — no more editing `/etc/sudoers` on each machine
+- **Internal CA** — valid HTTPS for Home Assistant, Grafana, Proxmox, Gitea — no browser warnings
+- **DNS for your home domain** — `*.home.lab` resolves correctly on all your devices
+- **DNSSEC** — because why not
+
+If you run more than two Linux machines at home, FreeIPA pays off.
+
+---
+
+## Enterprise Users
+
+At scale, this is where FreeIPA shines:
+
+- **Compliance** — HBAC and sudo rules create an auditable access control layer (PCI-DSS, SOX, HIPAA, CIS)
+- **Least-privilege enforcement** — who can SSH to a production DB host? Define it once, enforce it everywhere
+- **Certificate lifecycle** — hundreds of service certs, all auto-renewing, no surprises at 2AM
+- **Onboarding / offboarding** — add or disable a user in one place; access across all systems follows immediately
+- **AD integration** — existing Windows AD? FreeIPA can trust it — Linux systems get the benefit of FreeIPA while AD users can authenticate too
+
+---
+
+<!-- _class: section-divider invert theme-gradient-motif -->
+
 # Architecture
 
 ---
@@ -499,6 +533,24 @@ kdestroy                # discard all tickets (logout)
 - Rotating: issue a new keytab — the old one is immediately invalidated
 
 SSSD handles `kinit`/ticket renewal transparently at interactive login — users rarely need to run it manually.
+
+---
+
+## Kerberos SSO (GSSAPI)
+
+Login once - no need for sshkeys as you access other hosts!
+
+1. User runs kinit alice  (or GNOME login does it automatically)
+   → alice gets a TGT from the KDC
+
+2. ssh alice@ipaclient1
+   → SSH client sees alice has a TGT
+   → Requests a service ticket for host/ipaclient1.int.lug from KDC
+   → KDC issues service ticket encrypted with the host's key
+
+3. SSH client sends service ticket to sshd
+   → sshd decrypts it using /etc/krb5.keytab
+   → Identity proven — no password ever exchanged
 
 ---
 
@@ -677,38 +729,19 @@ They share a lineage (Kerberos + LDAP) but differ in focus:
 
 For Linux-heavy environments, FreeIPA is the natural fit. They can coexist via trust.
 
----
+<!-- 
+Speaker notes — Microsoft terminology reference:
 
-<!-- _class: section-divider invert theme-gradient-motif -->
+**GPO (Group Policy Object)** — The primary mechanism in Active Directory for enforcing configuration and security policy across Windows clients and servers. A GPO is a collection of settings (registry values, security options, software deployment rules, login scripts) that is linked to an OU (Organizational Unit), site, or domain and automatically applied to all machines and users within that scope. Think of it as a centrally managed `/etc/sudoers`, `/etc/ssh/sshd_config`, and startup script — all in one, pushed to every machine automatically. FreeIPA has no direct equivalent; HBAC and sudo rules cover the access control portion, but GPO also handles desktop configuration, software deployment, and Windows-specific settings that have no Linux counterpart.
 
-# Who Needs This?
+**ADAC (Active Directory Administrative Center)** — The newer GUI tool for managing Active Directory, introduced in Windows Server 2008 R2. It replaced the older "Active Directory Users and Computers" (ADUC) snap-in for most day-to-day tasks. Roughly equivalent to the FreeIPA web UI.
 
----
+**RSAT (Remote Server Administration Tools)** — A collection of tools (including ADAC) that administrators install on their Windows workstation to manage AD servers remotely. The equivalent of having the `ipa` CLI and web UI available on your local machine rather than logging into the server.
 
-## Home Lab Users
+**Forest trust** — Active Directory organises domains into "forests" — a forest is a collection of domains that share a common schema and global catalog. A forest trust allows users in one AD forest to authenticate against resources in another. FreeIPA's AD trust is functionally similar: it creates a cross-realm Kerberos trust so FreeIPA users can access AD resources and vice versa, without merging the two directories.
 
-You don't need 500 servers to benefit:
-
-- **One user account** — log into any VM or container with the same credentials
-- **SSH keys stored once** — `ipa user-mod jsmith --sshpubkey="ssh-ed25519 ..."` and it works everywhere
-- **Sudo managed centrally** — no more editing `/etc/sudoers` on each machine
-- **Internal CA** — valid HTTPS for Home Assistant, Grafana, Proxmox, Gitea — no browser warnings
-- **DNS for your home domain** — `*.home.lab` resolves correctly on all your devices
-- **DNSSEC** — because why not
-
-If you run more than two Linux machines at home, FreeIPA pays off.
-
----
-
-## Enterprise Users
-
-At scale, this is where FreeIPA shines:
-
-- **Compliance** — HBAC and sudo rules create an auditable access control layer (PCI-DSS, SOX, HIPAA, CIS)
-- **Least-privilege enforcement** — who can SSH to a production DB host? Define it once, enforce it everywhere
-- **Certificate lifecycle** — hundreds of service certs, all auto-renewing, no surprises at 2AM
-- **Onboarding / offboarding** — add or disable a user in one place; access across all systems follows immediately
-- **AD integration** — existing Windows AD? FreeIPA can trust it — Linux systems get the benefit of FreeIPA while AD users can authenticate too
+**OU (Organizational Unit)** — A container within Active Directory used to organise users, computers, and groups, and to scope the application of GPOs. Roughly analogous to groups in FreeIPA, though OUs also carry policy inheritance which FreeIPA groups do not.
+-->
 
 ---
 

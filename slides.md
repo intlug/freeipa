@@ -449,7 +449,7 @@ The LDAP backbone of FreeIPA.
 - Port 389 (LDAP) and 636 (LDAPS) — that's where the name "389" comes from
 - Descends from Netscape Directory Server → open-sourced by Red Hat as Fedora DS → 389 DS
 - FreeIPA extends the schema with its own object classes
-- Replication is handled here — multiple FreeIPA servers share a replicated DIT
+- Replication is handled here — multiple FreeIPA servers share a replicated DIT (Directory Information Tree)
 
 All `ipa` CLI commands and the web UI are ultimately reads/writes against `dirsrv`.
 
